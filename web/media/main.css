@@ -1,0 +1,37 @@
+#header {
+	height: 50px;
+	background: #000000;
+	color: #FFFFFF;
+	text-align: center;
+	font-size: 30px;
+}
+
+body {
+	background-color: #FFFFFF;
+}
+
+.title {
+	color: #FFFFFF;
+}
+
+#footer {
+	text-align: center;
+}
+
+.post {
+	background: #EEEEEE;
+	border: 1px solid;
+}
+
+.comment {
+	background: #FAFAFA;
+	border: 1px solid;
+}
+
+.author {
+	font-weight: bold
+}
+
+a:link {color: #0000ff; text-decoration: none}
+a:visited {color: #0000ff; text-decoration: none}
+a:hover {color: #0000ff; text-decoration: underline}

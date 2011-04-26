@@ -1,0 +1,27 @@
+{% extends "main.html" %}
+{% block content %}
+
+{% for post in posts %}
+	<div class="post">
+		<div class="author">{{ post.login }}:</div>
+		<div class="tags">{{ post.tags|join:" " }}</div>
+		<div class="message">{{ post.message }}</div>
+		<div class="info"><a href="{{ post.post }}">#{{ post.post }}</a> ({{ post.count_comments }} коммент.)</div>
+	</div>
+	<br>
+{% endfor %}
+
+{% for comment in comments %}
+	<div class="comment">
+		<div class="author">{{ comment.login }}:</div>
+		<div class="message">{{ comment.message }}</div>
+		<div class="info"><a href="{{ post.post }}">#{{ comment.post }}/{{ comment.comment }}</a>
+		{% if comment.high_comment %}
+			в ответ на {{ comment.high_comment }}
+		{% endif %}
+		</div>
+	</div>
+	<br>
+{% endfor %}
+
+{% endblock %}
