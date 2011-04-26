@@ -27,11 +27,12 @@ class dmb_bot_client:
 
 	def messageHandler(self, conn, msg):
 		try:
-			log.info('%s(%s) -> %s' % (msg.getFrom(), msg.getBody(), msg.getAttrs()))
+			log.debug('%s(%s) -> %s' % (msg.getFrom(), msg.getBody(), msg.getAttrs()))
 			if msg.getAttrs().get('dmb') == 'server':
 				if self.s2sFunc:
 					login = msg.getAttrs().get('dmb_login')
-					self.s2sFunc(str(msg.getFrom()).split('/')[0], msg.getBody(), login)
+					type_msg = msg.getAttrs().get('dmb_type')
+					self.s2sFunc(str(msg.getFrom()).split('/')[0], type_msg, msg.getBody(), login)
 			elif msg.getBody() and self.messageFunc:
 				self.messageFunc(str(msg.getFrom()).split('/')[0], msg.getBody())
 		except SystemExit:
@@ -43,7 +44,7 @@ class dmb_bot_client:
 	def presenceHandler(self, conn, event):
 		try:
 			if event:
-				log.info('%s %s' % (event.getFrom(), event.getAttrs()))
+				log.debug('%s %s' % (event.getFrom(), event.getAttrs()))
 				if event.getAttrs().get('type') == 'subscribe':
 					self.client.getRoster().Authorize(event.getFrom())
 				jid = str(event.getFrom()).split('/')[0]
@@ -82,7 +83,7 @@ class dmb_bot_client:
 				if extra:
 					for k, v in extra.iteritems():
 						msg.setAttr(k, v)
-				log.info('%s(%s) -> %s' % (jid, msg.getBody(), msg.getAttrs()))
+				log.debug('%s(%s) -> %s' % (jid, msg.getBody(), msg.getAttrs()))
 				self.client.send(msg)
 		except:
 			log.error('%d %s %s' % (sys.exc_traceback.tb_lineno, sys.exc_type, sys.exc_value))

@@ -9,7 +9,10 @@ import sys
 import config
 
 #dmb = dmb_service()
-#print dmb.getUserParams('anarchy@dmb.im')
+#print dmb.getUserParams('anarchy@')
+#login = 'anarchy@debian-server'
+#msg = dmb.getShow(login = login, count = 2)
+#print dmb.show(login = login, messages = msg[0], pre_text = msg[1])
 #sys.exit()
 
 interface = dmb_interface()

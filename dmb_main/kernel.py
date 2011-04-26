@@ -26,52 +26,62 @@ def getServerName(jid):
 	except ValueError:
 		return jid
 
+def getJidName(server):
+	yield 'dmb@%s' % server
+	try:
+		bot, srv = server.split('.', 1)
+		yield '%s@%s' % (bot, srv)
+	except ValueError:
+		raise dmbErrorNotFound
+
 class dmbError(Exception):
 
-	def __init__(self, code = 'ERR7'):
+	def __init__(self, code = 'ERR7', message = ''):
 		self.code = code
-		self.message = ''
+		self.message = message
+
 	def getCode(self):
 		return self.code
+
 	def getText(self):
 		return self.message
 
 class dmbErrorAuth(dmbError):
-	def __init__(self, code = 'ERR1'):
-		dmbError.__init__(self, code)
+	def __init__(self, code = 'ERR1', message = ''):
+		dmbError.__init__(self, code, message)
 
 class dmbErrorEmpty(dmbError):
-	def __init__(self, code = 'ERR2'):
-		dmbError.__init__(self, code)
+	def __init__(self, code = 'ERR2', message = ''):
+		dmbError.__init__(self, code, message)
 
 class dmbErrorNotFound(dmbError):
-	def __init__(self, code = 'ERR4'):
-		dmbError.__init__(self, code)
+	def __init__(self, code = 'ERR4', message = ''):
+		dmbError.__init__(self, code, message)
 
 class dmbErrorRepeat(dmbError):
-	def __init__(self, code = 'ERR5'):
-		dmbError.__init__(self, code)
+	def __init__(self, code = 'ERR5', message = ''):
+		dmbError.__init__(self, code, message)
 
 class dmbErrorAccess(dmbError):
-	def __init__(self, code = 'ERR6'):
-		dmbError.__init__(self, code)
+	def __init__(self, code = 'ERR6', message = ''):
+		dmbError.__init__(self, code, message)
 
 class dmbErrorUnknown(dmbError):
-	def __init__(self, code = 'ERR7'):
-		dmbError.__init__(self, code)
+	def __init__(self, code = 'ERR7', message = ''):
+		dmbError.__init__(self, code, message)
 
 class dmbErrorParsing(dmbError):
-	def __init__(self, code = 'ERR8'):
-		dmbError.__init__(self, code)
+	def __init__(self, code = 'ERR8', message = ''):
+		dmbError.__init__(self, code, message)
 
 class dmbErrorBusy(dmbError):
-	def __init__(self, code = 'ERR9'):
-		dmbError.__init__(self, code)
+	def __init__(self, code = 'ERR9', message = ''):
+		dmbError.__init__(self, code, message)
 
 class dmbErrorCommand(dmbError):
-	def __init__(self, code = 'ERR11'):
-		dmbError.__init__(self, code)
+	def __init__(self, code = 'ERR11', message = ''):
+		dmbError.__init__(self, code, message)
 
 class dmbErrorSyntax(dmbError):
-	def __init__(self, code = 'ERR12'):
-		dmbError.__init__(self, code)
+	def __init__(self, code = 'ERR12', message = ''):
+		dmbError.__init__(self, code, message)

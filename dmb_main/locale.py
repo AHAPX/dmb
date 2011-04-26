@@ -38,6 +38,7 @@ class dmb_locale:
 		'ERRMSG9': 'Object',
 		'ERRMSG10': 'Alias',
 		'ERRMSG11': 'Regexp',
+		'ERRMSG12': 'Server',
 #post show	
 		'PS1': 'recommended',
 		'PS2': 'comments',
@@ -110,6 +111,7 @@ class dmb_locale:
 		'ERRMSG9': u'Объект',
 		'ERRMSG10': u'Алиас',
 		'ERRMSG11': u'Регэкс',
+		'ERRMSG12': u'Сервер',
 		'PS1': u'рекоммендовал(а)',
 		'PS2': u'коммент.',
 		'PS3': u'ответ на',

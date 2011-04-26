@@ -13,6 +13,7 @@ db_user = None
 db_pass = None
 
 log = {'filename': '/home/anarchy/logs/dmb', 'level': logging.DEBUG, 'maxBytes': 1048576, 'backupCount': 9}
+log_counters = {'filename': '/home/anarchy/logs/counters', 'level': logging.DEBUG, 'maxBytes': 1048576, 'backupCount': 2}
 
 threads_count = 2
 

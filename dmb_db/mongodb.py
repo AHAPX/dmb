@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from pymongo import connection, objectid
-import time, re
+import time, re, sys
 from dmb_main.dmb_log import log
 import config
 from dmb_main.kernel import *
@@ -144,8 +144,11 @@ class dmb_database:
 		if cur.count():
 			params = self.getUserParams(cur[0]['login'])
 			lists = self.getUserList(cur[0]['login'])
-			if ((params['access_level'] == access_deny_all) and (login != params['login'])) or ((params['access_level'] == access_deny_black) and (login in lists['black'])) or ((params['access_level'] == access_allow_white) and (not (login in lists['white']))):
-				raise dmbErrorAccess
+			try:
+				if ((params['access_level'] == access_deny_all) and (login != params['login'])) or ((params['access_level'] == access_deny_black) and (login in lists['black'])) or ((params['access_level'] == access_allow_white) and (not (login in lists['white']))):
+					raise dmbErrorAccess
+			except TypeError:
+				pass
 			newComment = {'post': post, 'login': login, 'message': message, 'timestamp': time.time()}
 			if comment:
 				if not self.conn.comments.find({'id': int(comment), 'post': post}).count():
@@ -226,13 +229,14 @@ class dmb_database:
 			if login:
 				params = self.getUserParams(login)
 				lists = self.getUserList(login)
-				if params['access_level'] == access_deny_black:
-					if lists['black']['users']:
-						query['login'] = {'$nin': lists['black']['users']}
-				elif params['access_level'] == access_allow_white:
-					query['login'] = {'$in': [login] + lists['white']['users']}
-				elif params['access_level'] == access_deny_all:
-					query['login'] = login
+				if params and lists:
+					if params['access_level'] == access_deny_black:
+						if lists['black']['users']:
+							query['login'] = {'$nin': lists['black']['users']}
+					elif params['access_level'] == access_allow_white:
+						query['login'] = {'$in': [login] + lists['white']['users']}
+					elif params['access_level'] == access_deny_all:
+						query['login'] = login
 			cur = self.conn.posts.find(query).sort('timestamp', -1).limit(count)
 			seq = list(cur)
 			seq.reverse()
@@ -243,19 +247,21 @@ class dmb_database:
 			if login:
 				params = self.getUserParams(login)
 				lists = self.getUserList(login)
-				if params['access_level'] == access_deny_black:
-					if lists['black']['users']:
-						query['login'] = {'$nin': lists['black']['users']}
-					if lists['black']['tags']:
-						query['$or'] = [{'login': login}, {'tags': {'$nin': lists['black']['tags']}}]
-				elif params['access_level'] == access_allow_white:
-					query = {'$or': [{'login': login}, {'login': {'$in': lists['white']['users']}, 'tags': {'$in': lists['white']['tags']}}]}
-				elif params['access_level'] == access_deny_all:
-					query = {'login': login}
+				if params and lists:
+					if params['access_level'] == access_deny_black:
+						if lists['black']['users']:
+							query['login'] = {'$nin': lists['black']['users']}
+						if lists['black']['tags']:
+							query['$or'] = [{'login': login}, {'tags': {'$nin': lists['black']['tags']}}]
+					elif params['access_level'] == access_allow_white:
+						query = {'$or': [{'login': login}, {'login': {'$in': lists['white']['users']}, 'tags': {'$in': lists['white']['tags']}}]}
+					elif params['access_level'] == access_deny_all:
+						query = {'login': login}
 			cur = self.conn.posts.find(query).sort('timestamp', -1).limit(count)
 			seq = list(cur)
 			seq.reverse()
-			for rec in seq:			
+			for rec in seq:
+				log.debug(rec)
 				yield (const_post, {'post': int(rec['id']), 'message': rec['message'], 'timestamp': rec['timestamp'], 'login': rec['login'], 'tags': rec['tags'], 'count_comments': rec['count_comments'], 'count_recom': self.conn.recommends.find({'post': rec['id'], 'comment': None}).count()})
 
 	def subscribe(self, login, post = None, tag = None, user = None):

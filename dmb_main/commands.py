@@ -2,10 +2,11 @@
 
 from getopt import *
 from kernel import *
+import kernel
 import sys, re
 from dmb_log import log
 
-command_list = ['show', 'post', 'comment', 'delete', 'recommend', 'subscribes', 'unsubscribe', 'register', 'unregister', 'list', 'get', 'set', 'alias', 'regexp']
+command_list = ['show', 'post', 'comment', 'delete', 'recommend', 'subscribes', 'unsubscribe', 'register', 'unregister', 'list', 'get', 'set', 'alias', 'regexp', 'send']
 
 def parsing(service, login, text, jid = None):
 	try:
@@ -37,7 +38,7 @@ def parsing(service, login, text, jid = None):
 		if login == 'anonymous' and not command in ('show', 'post', 'comment', 'register'):
 			return service.getText('MSG70')
 		if command == 'show':
-			user = post = comment = tag = None
+			user = post = comment = tag = server = None
 			count = 10
 			opts, args = getopt(args, 'u:p:t:', ['user=', 'post=', 'tags='])
 			for o, a in opts:
@@ -56,7 +57,8 @@ def parsing(service, login, text, jid = None):
 					break
 			if post:
 				post, comment = service.normilizeID(post)
-			return service.show(login = login, count = count, post = post, comment = comment, tag = tag, user = user)
+			msg = service.getShow(login = login, count = count, post = post, comment = comment, tag = tag, user = user)
+			return service.show(login = login, messages = msg[0], pre_text = msg[1])
 		elif command == 'post':
 			post = message = None
 			tags = []
@@ -208,13 +210,13 @@ def parsing(service, login, text, jid = None):
 			raise dmbErrorParsing
 		elif command == 'get':
 			if len(args) > 0:
-				param = args.split()[0]
+				param = args[0]
 			else:
 				param = None
 			return service.getUserParam(login, param)
 		elif command == 'set':
 			if len(args) > 0:
-				param = args.split()[0]
+				param = args[0]
 				if len(args) > 1:
 					value = args[1]
 				else:
@@ -264,6 +266,27 @@ def parsing(service, login, text, jid = None):
 				else:
 					return service.delRegexp(login = login, name = name)
 			raise dmbErrorParsing
+		elif command == 'send':
+			log.debug(str(kernel.dmb_servers))
+			server = bot = None
+			opts, args = getopt(args, 's:b:', ['server=', 'bot='])
+			for o, a in opts:
+				if o in ('-s', '--server'):
+					server = a
+					break
+				elif o in ('-b', '--bot'):
+					bot = a
+					break
+			if server:
+				try:
+					for i in getJidName(server):
+						log.debug(i)
+						if i in kernel.dmb_servers:
+							service.queue_to_send.append({'jid': (i,), 'message': ' '.join(args), 'send': True, 'extra': {'dmb': 'server', 'dmb_type': 'command', 'dmb_login': login}})
+							return
+					raise dmbErrorNotFound(message = service.getText('ERRMSG12'))
+				except dmbErrorNotFound:
+					raise dmbErrorNotFound(message = service.getText('ERRMSG12'))
 		else:
 			raise dmbErrorParsing
 	except GetoptError:
@@ -283,20 +306,22 @@ def adminParsing(service, login, text, jid = None):
 		sys.exit()
 	elif command == 'registry':
 		new_server = args.split(' ')[0]
-		dmb_servers = service.addServer(new_server)
-		service.queue_to_send.append({'jid': (new_server,), 'message': 'registry', 'send': True, 'extra': {'dmb': 'server'}})
+		kernel.dmb_servers = service.addServer(new_server)
+		service.queue_to_send.append({'jid': (new_server,), 'message': 'empty', 'send': True, 'extra': {'dmb': 'server', 'dmb_type': 'reg'}})
 	elif command == 'add_server':
 		try:
-			dmb_servers = service.addServer(args.split()[0])
+			kernel.dmb_servers = service.addServer(args.split()[0])
 			return 'ok'
 		except dmbErrorRepeat:
 			return 'already exists'
 	elif command == 'del_server':
 		try:
-			dmb_servers = service.delServer(args.split()[0])
+			kernel.dmb_servers = service.delServer(args.split()[0])
 			return 'ok'
 		except dmbErrorNotFound:
 			return 'not found'
+	elif command == 'servers':
+		return ', '.join(kernel.dmb_servers)
 	elif command == '*':
 		return parsing(service, '*', ' '.join(args), jid)
 	else:

@@ -3,6 +3,7 @@
 import sys, dmb_xmpp, config
 from dmb_main.commands import *
 from dmb_main.kernel import *
+import dmb_main.kernel
 from dmb_main.service import dmb_service
 from dmb_main.dmb_log import log
 import threading, Queue, time
@@ -23,7 +24,7 @@ class inputThread(threading.Thread):
 		while is_run:
 			try:
 				jid, message, login = queue_input.get(timeout = 10)
-				log.info('%s %s' % (jid, message))
+				log.debug('%s %s' % (jid, message))
 				if not login:
 					try:
 						login = self.dmb.getLogin(jid = jid)
@@ -33,14 +34,12 @@ class inputThread(threading.Thread):
 					self.dmb.def_locale = self.dmb.getUserParams(login)['locale']
 				except:
 					log.error('%d %s %s' % (sys.exc_traceback.tb_lineno, sys.exc_type, sys.exc_value))			
+					self.dmb.def_locale = 'en'
 				try:
-					tick = time.time()
 					if jid == config.admin:
 						mesg = adminParsing(self.dmb, login = unicode(login), text = unicode(message), jid = jid)
 					else:
 						mesg = parsing(self.dmb, login = unicode(login), text = unicode(message), jid = jid)
-					tick = time.time() - tick
-					log.debug('%s %s' % (message.split(' ')[0], tick))
 				except SystemExit:
 					log.info('exit')
 					is_run = None
@@ -52,7 +51,11 @@ class inputThread(threading.Thread):
 				except:
 					log.error('%d %s %s' % (sys.exc_traceback.tb_lineno, sys.exc_type, sys.exc_value))
 					mesg = self.dmb.getText('ERR7')
-				queue_output.put((jid, mesg, {}))
+				if jid in kernel.dmb_servers:
+					extra = {'dmb': 'server', 'dmb_type': 'send', 'dmb_login': login.split('@')[0]}
+				else:
+					extra = {}
+				queue_output.put((jid, mesg, extra))
 				self.queueHandle()
 			except Queue.Empty:
 				pass
@@ -61,7 +64,6 @@ class inputThread(threading.Thread):
 		if self.dmb.queue_to_send:
 			for rec in self.dmb.queue_to_send:
 				sended = 0
-				log.info(rec['jid'])
 				for j in rec['jid']:
 					if rec.get('send') or self.ui.getStatus(j):
 						queue_output.put((j, rec.get('message'), rec.get('extra')))
@@ -78,10 +80,7 @@ class inputThread(threading.Thread):
 						log.debug('%d %s %s' % (sys.exc_traceback.tb_lineno, sys.exc_type, sys.exc_value))
 					except:
 						log.error('%d %s %s' % (sys.exc_traceback.tb_lineno, sys.exc_type, sys.exc_value))
-			tick = time.time()
 			self.dmb.queue_to_send = []
-			tick = time.time() - tick
-			log.debug('%s %s' % ('queueHandle', tick))
 
 class outputThread(threading.Thread):
 
@@ -100,12 +99,17 @@ class outputThread(threading.Thread):
 
 class dmb_interface:
 
+	def getActiveJid(self, jids):
+		for j in jids:
+			if self.xmpp_client.getStatus(j):
+				return j
+		return jids[0]
+
 	def __init__(self):
-		global dmb_servers
-#		dmb_servers = dmb_service().getServers()
 		self.xmpp_client = dmb_xmpp.dmb_bot_client(config.bot_jid, config.bot_passwd, messageFunc = self.commandHandler, presenceFunc = self.presenceHandler, s2sFunc = self.s2sHandler)
 		self.dmb = dmb_service()
-		dmb_servers = self.dmb.getServers()
+		kernel.dmb_servers = self.dmb.getServers()
+		log.debug(str(kernel.dmb_servers))
 		self.threads = []
 		for i in xrange(config.threads_count):
 			self.threads.append(inputThread(self.xmpp_client))
@@ -128,27 +132,29 @@ class dmb_interface:
 	def commandHandler(self, jid, message):
 		queue_input.put((jid, message, None))
 
-	def s2sHandler(self, jid, message, login = None):
-		global dmb_servers
-		log.info('***s2s*** %s %s' % (jid, message))
-		if message == 'registry':
-			log.info('servers: %s' % dmb_servers)
-			if jid in dmb_servers:
-				queue_output.put((jid, 'registry already exists', {}))
+	def s2sHandler(self, jid, type_msg, message, login = None):
+		log.debug('***s2s*** %s %s' % (jid, message))
+		if type_msg == 'reg':
+			if jid in kernel.dmb_servers:
+				queue_output.put((jid, 'empty', {'dmb_type': 'ok'}))
 			else:
 				if config.s2s_reg == s2s_reg_deny:
-					queue_output.put((jid, 'deny registry', {}))
+					queue_output.put((jid, 'empty', {'dmb_type': 'deny'}))
 				elif config.s2s_reg == s2s_reg_allow_confirm:
 					queue_output.put((config.admin, '%s want to register' % jid, {}))
 				else:
 					try:
-						dmb_servers = self.dmb.addServer(jid)
-						msg_out = 'ok'
+						kernel.dmb_servers = self.dmb.addServer(jid)
 					except dmbErrorRepeat:
-						msg_out = 'already exists'
-					queue_output.put((jid, msg_out, {'dmb': 'server'}))
+						pass
+					else:
+						queue_output.put((config.admin, 'server %s registry' % jid, {}))
+				queue_output.put((jid, 'empty', {'dmb': 'server', 'dmb_type': 'ok'}))
 		elif config.s2s_msg == s2s_msg_allow:
-			queue_input.put((jid, message, '%s@%s' % (login, getServerName(jid))))
+			if type_msg == 'send':
+				queue_output.put((self.getActiveJid(self.dmb.getJid(login)), message, {}))
+			elif type_msg == 'command':
+				queue_input.put((jid, message, '%s@%s' % (login, getServerName(jid))))
 
 	def xmpp_start(self):
 		self.xmpp_client.process()
