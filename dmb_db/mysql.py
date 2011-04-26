@@ -1,65 +1,115 @@
 # -*- coding: utf8 -*-
 
 import MySQLdb
-from dmb_main import kernel
-from dmb_main.kernel import const_post, const_comment, const_user
+import time, re, sys
+from dmb_main.dmb_log import log
+import config
+from dmb_main.kernel import *
 
 class dmb_database:
-	def __init__(self, host, base, user, passwd):
-		self.conn = MySQLdb.connect(host = host, user = user, passwd = passwd, db = base)
-		if self.conn:
-			print 'Connected database'
+	def __init__(self, host, port = 3306, base = 'dmb', user = None, passwd = None):
+		try:
+			self.conn = MySQLdb.connect(host = host, user = user, passwd = passwd, db = base)
+			if self.conn:
+				log.info('connected database')
+		except:
+			log.critical('%d %s %s' % (sys.exc_traceback.tb_lineno, sys.exc_type, sys.exc_value))
 	
 	def close(self):
 		self.conn.close()
-		print 'Disconnected database'
+		log.info('disconnected database')
 	
 	def initDB(self):
 		'''Создает все служебные таблицы'''
 		try:
-			self.conn.query('create table users (id int not null auto_increment, login varchar(50), jid varchar(100), primary key (id));')
-			self.conn.query('create table posts (id int not null auto_increment, id_user int, message text, datetime datetime, primary key (id));')
-			self.conn.query('create table tags (id int not null auto_increment, name varchar(30), primary key (id));')
-			self.conn.query('create table comments (id int not null, id_user int, id_post int not null, id_comment int null, message text, datetime datetime, primary key (id, id_post));')
-			self.conn.query('create table post_tags (id int not null auto_increment, id_post int, id_tag int, primary key (id));')
-			self.conn.query('create table subscribes (id int not null auto_increment, id_user int, id_post int, id_tag int, id_subs_user int, primary key(id));')
-			self.conn.query('create table recommends (id int not null auto_increment, id_post int, id_comment int, id_user int, message varchar(50), primary key (id));')
-			print 'Tables created success'
+			self.conn.query('''
+			begin;
+				create table types (id int not null, type varchar(15), primary key (id)) engine=InnoDB;
+				create table users (id int not null auto_increment, login varchar(50), primary key (id)) engine=InnoDB;
+				create table users_params (id int not null auto_increment, id_user int, id_type int, value varchar(15), primary key (id)) engine=InnoDB;
+				create table users_lists (id int not null auto_increment, id_user int, name varchar(15), id_type int, id_object int, primary key (id)) engine=InnoDB;
+				create table users_alias (id int not null auto_increment, id_user int, alias varchar(15), command varchar(50), primary key (id)) engine=InnoDB;
+				create table users_regexp (id int not null auto_increment, id_user int, name varchar(15), exp varchar(100), command varchar(50), primary key (id)) engine=InnoDB;
+				create table users_jids (id int not null auto_increment, id_user int, jid varchar(100), protocol varchar(10), priority int, primary key (id)) engine=InnoDB;
+				create table posts (id int not null auto_increment, id_user int, message text, datetime timestamp, primary key (id)) engine=InnoDB;
+				create table tags (id int not null auto_increment, tag varchar(30), primary key (id)) engine=InnoDB;
+				create table posts_tags (id int not null auto_increment, id_post int, id_tag int, primary key (id)) engine=InnoDB;
+				create table comments (id int not null, id_user int, id_post int not null, id_comment int null, message text, datetime timestamp, primary key (id, id_post)) engine=InnoDB;
+				create table subscribes (id int not null auto_increment, id_user int, id_type int, id_object int, primary key(id)) engine=InnoDB;
+				create table recommends (id int not null auto_increment, id_user int, it_type int, id_object int, message varchar(50), primary key (id)) engine=InnoDB;
+				create table send_history (id int not null auto_increment, id_user int, id_post int, id_comment int, primary key (id)) engine=InnoDB;
+				create table send_queue (id int not null auto_increment, id_user int, id_post int, id_recommend int, primary key (id)) engine=InnoDB;
+				create table servers (id int not null auto_increment, name varchar(30), primary key (id)) engine=InnoDB;
+				insert into types values (1, 'user'), (2, 'post'), (3, 'comment'), (4, 'tag'), (10, 'num_type'), (11, 'time_zone'), (12, 'access_level'), (13, 'locale');
+				insert into users (login) values ('anonymous'), ('*');
+			commit;''')
+			log.info('tables created success')
 		except MySQLdb.OperationalError:
-			print 'Tables already exists'
+			log.info('tables already exists')
+			raise dmbErrorRepeat
 			
-	def regUser(self, jid, login):
+	def regUser(self, jid, login, priority = 50, protocol = 'xmpp', force = None):
 		'''Регистрация пользователя'''
 		cur = self.conn.cursor()
-		cur.execute('select * from users where jid = \'%s\'' % jid)
-		if cur.rowcount > 0:
-			print 'This is JID already have login'
-			return -1
+		cur.execute('select * from users_jids where jid = \'%s\'' % jid)
+		if cur.rowcount:
+			raise dmbErrorRepeat
 		else:
 			cur.execute('select * from users where login = \'%s\'' % login)
-			if cur.rowcount > 0:
-				print 'This is login already busy'
-				return -2
-		self.conn.query('insert into users (login, jid) values (\'%s\', \'%s\')' % (login, jid))
-		print 'Add new user: %s' % login
+			if cur.rowcount > 0 and not force:
+				raise dmbErrorBusy
+		self.conn.query('''
+		begin;
+			insert into users (login) values ('%(login)s');
+			select @id_user := id from users where login = '%(login)s';
+			insert into users_jids (id_user, jid, protocol, priority) values (@id_user, '%(jid)s', '%(protocol)s', %(priority)i);
+			insert into users_params (id_user, id_type, value) values (@id_user, 10, '0'), (@id_user, 11, '0'), (@id_user, 12, '%(access)i'), (@id_user, 13, 'en');
+		commit;''' % {'login': login, 'jid': jid, 'protocol': protocol, 'priority': priority, 'access': access_deny_black})
+		cur = self.conn.cursor()
 		cur.execute('select id from users where login = \'%s\'' % login)
 		return cur.fetchone()[0]
 
-	def getUser(self, login = None, jid = None):
-		'''Получение id пользователя по его логину или jid'''
+	def unRegUser(self, jid, login):
 		cur = self.conn.cursor()
-		if login:
-			cur.execute('select id from users where login = \'%s\'' % login)
-		elif jid:
-			cur.execute('select id from users where jid = \'%s\'' % jid)
+		cur.execute('select j.id from users u join users_jids j on j.id_user = u.id where j.jid = \'%s\' and u.login = \'%s\'' % (jid, login))
+		if cur.rowcount:
+			self.conn.query('delete from users_jids where jid = \'%s\'' % jid)
+			self.conn.commit()
+			return 1
 		else:
-			print 'Unknown user'
-			return -1
-		if cur.rowcount > 0:
+			raise dmbErrorNotFound
+
+	def getLogin(self, jid):
+		cur = self.conn.cursor()
+		cur.execute('select u.login from users u join users_jids j on j.id_user = u.id where j.jid = \'%s\'' % jid)
+		if cur.rowcount:
 			return cur.fetchone()[0]
 		else:
-			print 'User do not find from database'
-			return -2
+			raise dmbErrorAuth
+
+	def getJid(self, login):
+		cur = self.conn.cursor()
+		cur.execute('select jid, priority from users_jids where id_user = (select id from users where login = \'%s\') order by priority desc;' % login)
+		if cur.rowcount:
+			result = {}
+			for rec in cur:
+				result[rec[0]] = rec[1]
+			return result
+		else:
+			raise dmbErrorNotFound
+
+	def getUserParams(self, login):
+		cur = self.conn.cursor()
+		cur.execute('select t.type, p.value from users u join users_params p on p.id_user = u.id join types t on t.id = p.id_type where u.login = \'%s\';' % login)
+		result = {}
+		for rec in cur:
+			result[rec[0]] = rec[1]
+		return result
+
+	def setUserParam(self, login, param, value):
+		self.conn.query('update users_params set value = \'%(value)s\' where id_user = (select id from users where login = \'%(login)s\') and id_type = (select id from types where type = \'%(param)s\');' % {'login': login, 'param': param, 'value': value})
+		self.conn.commit()
+		return 1
 
 	def post(self, message, tags, login = None, jid = None):
 		'''Добавление нового поста'''

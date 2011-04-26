@@ -238,9 +238,7 @@ class dmb_database:
 					elif params['access_level'] == access_deny_all:
 						query['login'] = login
 			cur = self.conn.posts.find(query).sort('timestamp', -1).limit(count)
-			seq = list(cur)
-			seq.reverse()
-			for rec in seq:			
+			for rec in cur:			
 				yield (const_post, {'post': int(rec['id']), 'message': rec['message'], 'timestamp': rec['timestamp'], 'login': rec['login'], 'tags': rec['tags'], 'count_comments': rec['count_comments'], 'count_recom': self.conn.recommends.find({'post': rec['id'], 'comment': None}).count()})
 		else:
 			query = {}
@@ -258,9 +256,7 @@ class dmb_database:
 					elif params['access_level'] == access_deny_all:
 						query = {'login': login}
 			cur = self.conn.posts.find(query).sort('timestamp', -1).limit(count)
-			seq = list(cur)
-			seq.reverse()
-			for rec in seq:
+			for rec in cur:
 				log.debug(rec)
 				yield (const_post, {'post': int(rec['id']), 'message': rec['message'], 'timestamp': rec['timestamp'], 'login': rec['login'], 'tags': rec['tags'], 'count_comments': rec['count_comments'], 'count_recom': self.conn.recommends.find({'post': rec['id'], 'comment': None}).count()})
 
